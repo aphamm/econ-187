@@ -1,0 +1,144 @@
+---
+title: "ECON 187: Project 1"
+author: "Austin Pham (905318112)"
+output: pdf_document
+
+---
+
+For this project you will need to use two different datasets of your choice. One will be used for classification and the other for regularization. For the classification dataset make sure you have more than two classes. For your regularization dataset, since the methods focus on variable selection, please make sure to have as many predictors as possible (e.g., 10s or 100s).
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(tidyverse)
+library(GGally)
+library(nnet)
+library(caret)
+```
+
+# Classification
+
+```{r message=FALSE, warning=FALSE}
+body <- read_csv("bodyPerformance.csv")
+body <- body %>% mutate(gender = factor(ifelse(gender == "M", 1, 0)))
+sum(is.na(body))
+head(body)
+```
+
+```{r eval=FALSE, message=FALSE, warning=FALSE}
+plot1 <- body %>% ggpairs(columns = c(1:4,12), ggplot2::aes(col = class, fill = class))
+plot2 <- body %>% ggpairs(columns = c(5:8,12), ggplot2::aes(col = class, fill = class))
+plot3 <- body %>% ggpairs(columns = c(9:12), ggplot2::aes(col = class, fill = class))
+plot1
+plot2
+plot2
+```
+
+## Logistic Regression
+
+**QUESTION** Do I train control over the entire dataset and then predict the entire datset using that as my MSE ??
+
+```{r}
+set.seed(42)
+fit.control.cv <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+fit.control.boot <-  trainControl(method = "boot")
+mn.fit.cv <- train(class ~ ., data = body, method = "multinom",
+                   trControl = fit.control.cv, trace = FALSE,
+                   preProcess = c("center", "scale"))
+mn.fit.boot <- train(class ~ ., data = body, method = "multinom",
+                     trControl = fit.control.boot, trace = FALSE,
+                     preProcess = c("center", "scale"))
+```
+
+```{r}
+mn.fit.cv$finalModel
+mn.fit.boot$finalModel
+confusionMatrix(mn.fit.cv)
+confusionMatrix(mn.fit.boot)
+mn.fit.cv$results
+mn.fit.boot$results
+```
+
+## LDA
+
+```{r}
+lda.fit.cv <- train(class ~ ., data = body, method = "lda",
+                    trControl = fit.control.cv, trace = FALSE,
+                    preProcess = c("center", "scale"))
+lda.fit.boot <- train(class ~ ., data = body, method = "lda",
+                      trControl = fit.control.boot, trace = FALSE,
+                      preProcess = c("center", "scale"))
+```
+
+```{r}
+lda.fit.cv$finalModel
+lda.fit.boot$finalModel
+confusionMatrix(lda.fit.cv)
+confusionMatrix(lda.fit.boot)
+lda.fit.cv$results
+lda.fit.boot$results
+```
+
+## QDA
+
+```{r}
+qda.fit.cv <- train(class ~ ., data = body, method = "qda",
+                    trControl = fit.control.cv, trace = FALSE,
+                    preProcess = c("center", "scale"))
+qda.fit.boot <- train(class ~ ., data = body, method = "qda",
+                      trControl = fit.control.boot, trace = FALSE,
+                      preProcess = c("center", "scale"))
+```
+
+```{r}
+qda.fit.cv$finalModel
+qda.fit.boot$finalModel
+confusionMatrix(qda.fit.cv)
+confusionMatrix(qda.fit.boot)
+qda.fit.cv$results
+qda.fit.boot$results
+```
+
+## kNN
+
+```{r}
+knn.fit.cv <- train(class ~ ., data = body, method = "knn",
+                    trControl = fit.control.cv, preProcess = c("center", "scale"))
+knn.fit.boot <- train(class ~ ., data = body, method = "knn",
+                      trControl = fit.control.boot, preProcess = c("center", "scale"))
+```
+
+```{r}
+knn.fit.cv$finalModel
+knn.fit.boot$finalModel
+confusionMatrix(knn.fit.cv)
+confusionMatrix(knn.fit.boot)
+knn.fit.cv$results
+knn.fit.boot$results
+```
+
+## k-Means
+
+```{r}
+
+```
+
+Based on your fits, identify whether a linear or non-linear model is more appropriate. Make sure to discuss your results (including plots and tables), and to use CV and/or bootstrap to evaluate your models’ performance.
+
+# Regularization
+
+## LASSO
+
+## Ridge
+
+## Elastic Net
+
+## PCA
+
+Based on your fits, identify the best model taking into consideration the bias-variance tradeoff. Make sure to discuss your results (including plots and tables), and to use CV and/or bootstrap to evaluate your models’ performance.
+
+# Sources
+
+https://remiller1450.github.io/s230f19/caret3.html
+https://dataaspirant.com/knn-implementation-r-using-caret-package/
+https://www.rdocumentation.org/packages/caret/versions/4.47/topics/train
+
+
