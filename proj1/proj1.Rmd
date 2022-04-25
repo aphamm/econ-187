@@ -1,6 +1,6 @@
 ---
 title: "ECON 187: Project 1"
-author: "Austin Pham (905318112)"
+author: "Austin Pham (905318112), Shannan Liu (305172952)"
 output: pdf_document
 
 ---
@@ -124,14 +124,213 @@ knn.fit.boot$results
 Based on your fits, identify whether a linear or non-linear model is more appropriate. Make sure to discuss your results (including plots and tables), and to use CV and/or bootstrap to evaluate your models’ performance.
 
 # Regularization
+For this portion of the project, we're going to use a data set containing information on the Australian housing market and apply regularization techniques to make predictions on house prices. The data set will have 81 columns of data. 
+
+*Overall procedure*
+Numeric pipeline:
+- We will impute missing values with medians 
+- After that, we will standardize each vector of data to ensure each feature is given equal weighting by our models
+
+Categorical pipeline:
+- In each vector of data, we will fill missing values with the most commonly observed sample
+- After that, we will transform each vector to numeric representation using label encoding or by making them dummy variables, where appropriate
+
+Afterwards, we will fit the Principal Component, LASSO, Ridge, and Elastic Net models to our data and see which produces the best fit. 
+
+For the LASSO, Ridge, and Elastic Net regressions, we have first remove multicollinearity before applying them. To address this issue, we will examine each variable's variance inflation factor. As a rule of thumb, a VIF > 5 implies that the variable is a potential cause of collinearity, so we will remove it from our dataset.
+
+```{r}
+rm(list = ls())
+# importing data
+df = read_csv('house_data.csv')
+cat("Number of variables:",length(df))
+head(df) # check
+
+# convert ID column into row names
+# and drop it
+rownames(df) <- df$Id
+drops <- c('Id')
+df <- df[ , !(names(df) %in% drops)]
+
+# check length of our data
+cat("Length of data:",length(df$MSSubClass))
+
+# check if our target variable has any missing values
+cat("Missing values in our target var:",sum(is.na(df$SalePrice)))
+
+# great, now we can train-test-split
+set.seed(42)
+train_index = createDataPartition(df$SalePrice, p = .7, list = FALSE)
+train <- df[train_index,]
+test  <- df[-train_index,]
+
+# drop columns with high number of NA values
+# define "high" as >20% null values
+drops <- c()
+
+# find the columns with a high number of NAs
+for (col in names(train)){
+  if (sum(is.na(df[col])) > 0.2*nrow(df[col])){
+    drops <- c(drops,col)
+  }
+}
+# drop those columns from our data
+train <- train[ , !(names(train) %in% drops)]
+test <- test[ , !(names(test) %in% drops)]
+
+# find if there are any variables that don't 
+# give any information i.e. 0 variance
+# this would be the case if a column only 
+# has 1 unique value
+cat("In the training set these variables have 0 variance:",names(sapply(lapply(train, unique), length)[sapply(lapply(train, unique), length) == 1]),"\n")
+
+cat("In the test set these variables have 0 variance:",names(sapply(lapply(test, unique), length)[sapply(lapply(test, unique), length) == 1]),
+    '\n')
+
+# we will drop the utilities variable
+drops <- c('Utilities')
+train<- train[ , !(names(train) %in% drops)]
+test <- test[ , !(names(test) %in% drops)]
+
+# split into train-test sets
+drops <- c('SalePrice')
+X_train <-train[ , !(names(train) %in% drops)]
+y_train <- train$SalePrice
+X_test <- test[ , !(names(test) %in% drops)]
+y_test <- test$SalePrice
+```
+
+## Pipeline
+```{r}
+# handling numeric data
+# (1) impute > median
+# (2) scale 
+X_train_scaled <- X_train %>% mutate_if(is.numeric,function(x) ifelse(is.na(x),median(x,na.rm=T),x)) %>% mutate_if(is.numeric, function(x) scale(x))
+
+X_test_scaled <- X_test %>% mutate_if(is.numeric,function(x) ifelse(is.na(x),median(x,na.rm=T),x)) %>% mutate_if(is.numeric, function(x) scale(x))
+
+# handling categorical data
+# (1) impute with mode
+X_train_scaled <- X_train_scaled %>% mutate_if(is.character,function(x) ifelse(is.na(x),mode(x),x))
+X_test_scaled <- X_test_scaled %>% mutate_if(is.character,function(x) ifelse(is.na(x),mode(x),x))
+
+# (2) encode data
+X_train_scaled <- X_train_scaled %>% mutate_if(is.character,function(x) as.integer(factor(x)))
+X_test_scaled <- X_test_scaled %>% mutate_if(is.character,function(x) as.integer(factor(x)))
+```
+
+## PCR
+```{r}
+library(pls)
+set.seed(42)
+
+# combine y_train and X_train_scaled
+train_scaled <- X_train_scaled
+train_scaled['SalePrice'] <- y_train
+
+# combine y_test and X_test_scaled
+test_scaled <- X_test_scaled
+test_scaled['SalePrice'] <- y_test
+
+# fit principal component analysis regression
+pcr.fit <- pcr(SalePrice ~ .,data = train_scaled,validation = "CV")
+
+# plot RMSE vs number of components
+validationplot(pcr.fit, val.type = "RMSEP",
+               legendpos='topright',
+               main = 'Number of Principal Components needed to
+Predict Sale Price')
+```
+
+From the validation plot, we observe that the number of components with the lowest cross-validation error is in the range of 21 to 40 components. Therefore, we will test ncomps in [21,40] to see which principal component regression model performs best on our test set.
+
+```{r}
+ncomps = seq(1:20) + 20
+ncomp_score <- c()
+for (n in ncomps){
+  pcr.pred <- predict(pcr.fit, X_test_scaled, ncomp = n)
+  ncomp_score <- c(ncomp_score,sqrt(mean((pcr.pred-y_test)^2)))
+}
+
+# table of ncomps and respective test scores
+data.frame(ncomps,ncomp_score)
+```
+
+This table shows that ncomps = 31 performs the best with an RMSE of $28,141.38$. This performance will later be compared against the rest of the regressions.
+
+## Ridge
+### Removing linearly dependent variables
+Before moving onto any of the other regressions, we're going to eliminate the linearly dependent variables from our data. We didn't confront this problem earlier because principal component analysis naturally eliminates multicollinearity.
+
+```{r}
+library(car)
+# find linearly dependent variables
+fit <- lm(SalePrice~.,data = train_scaled)
+ld_vars <- attributes(alias(fit)$Complete)$dimnames[[1]]
+cat('Linearly dependent variables:',ld_vars)
+
+# eliminate linearly dep variables
+train_scaled_reg <- train_scaled[,-which(names(train_scaled) %in% ld_vars)]
+test_scaled_reg <- test_scaled[,-which(names(test_scaled) %in% ld_vars)]
+
+# find variables with VIF > 5
+fit <- lm(SalePrice~. ,data = train_scaled_reg)
+cat("Variables with VIF > 5:",names(vif(fit)[vif(fit) > 5]))
+
+# eliminate variables with VIF > 5
+train_scaled_reg <- train_scaled_reg[,-which(names(train_scaled_reg) %in% names(vif(fit)[vif(fit) > 5]))]
+
+test_scaled_reg <-test_scaled_reg[,-which(names(test_scaled_reg) %in% names(vif(fit)[vif(fit) > 5]))]
+```
+
+The ridge model is a useful model to consider in modeling Sale Price because our feature space has 63 variables, and the the L2 regularization penalty, $\lambda \sum^{63}_{i = 1} \beta_i^2$, can help reduce the coefficients of less important variables in our data set to near-zero values.
+```{r}
+library(glmnet)
+library(Matrix)
+model_ridge = cv.glmnet(x = as.matrix(train_scaled_reg[,-which(names(train_scaled_reg) %in% c("SalePrice"))]), y=train_scaled_reg$SalePrice, alpha = 0)
+plot(model_ridge$glmnet.fit, "lambda", label=TRUE)
+```
+
+This plot shows how increasing the size of lambda affects the coefficients of different variables. We observe that our 4th, 14th, 45th, 23rd, 36th, 37th, and 26th variables are highly important, while the other variables are less so. 
+
+Now let's take a closer look at our important variables by creating a variable importance plot.
+
+```{r}
+library(vip)
+vip(model_ridge, num_features = 30, geom = "point")
+```
+
+This shows us that our street variable (which is the type of street the property is on) is the most important variable by far, then exterior quality, overall quality, and kitchen quality are the next most important variables. On a qualitative level, this makes sense because most people evaluate real-estate from the outside first, then the inside. Kitchen quality is unsurprising because many people spend a lot of time in their kitchens, either eating food or preparing food. Finally, on the less important side of the 30 variables, we see heating, basement condition, and so forth, which is also expected -- at least in Australia, where it's generally quite warm, and because the basement aesthetics are less noticeable.
+
+```{r}
+# we can utilise cross validation to train our ridge model 
+# and find the best lambda
+train_control <- trainControl(method = "repeatedcv",
+                              number = 5,
+                              repeats = 1,
+                              search = "random",
+                              verboseIter = FALSE)
+
+ridge_model 	<- train(SalePrice ~ .,
+                       data = train_scaled_reg,
+                       metrics = 'RMSE',
+                       method = "ridge",
+                       tuneLength = 25,
+                       trControl = train_control)
+
+# Predict using the testing data
+ridge_preds = predict(ridge_model, newdata = X_test_scaled)
+
+# Evaluate performance
+postResample(pred = ridge_preds, obs = y_test)
+```
+
+This shows us that our ridge model's best cross-validated performance is $29,408.71$, which is only slightly worse than our PCR model (worse by roughly $1,000$.
+
 
 ## LASSO
 
-## Ridge
-
 ## Elastic Net
-
-## PCA
 
 Based on your fits, identify the best model taking into consideration the bias-variance tradeoff. Make sure to discuss your results (including plots and tables), and to use CV and/or bootstrap to evaluate your models’ performance.
 
