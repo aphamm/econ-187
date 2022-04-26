@@ -454,17 +454,27 @@ This shows us that our Elastic Net Model's best cross-validated performance is $
 
 ## Model Comparison
 
+Comparing the RMSEs from predicting the test set Sale Price using our four regularization models, we find our principal component regression model performed best with the lowest RMSE of $28,141.38$. 
+
 RMSE Comparison: 
+PCR:   $28,141.38$
 Ridge: $33,211.91$
 Lasso: $33,128.05$
 E-Net: $33,115.49$
-PCA: $28,141.38$
 
-R-Squared Comparison:
-Ridge: $0.8071006$
-Lasso: $0.806975$
-E-Net: $0.807007$
-PCA: 
+This PCR model found that the number of components with the lowest cross-validation error was ncomps = 31. Thus our final regularization model is a PCR model with ncomps = 31:
+
+```{r}
+#Final PCR fit 
+pcr.fit.final <- pcr(SalePrice ~., data = train_scaled, ncomp = 31)
+summary(pcr.fit.final)
+
+#Predicting Sale Price
+pcr.pred.final <- predict(pcr.fit.final, X_test_scaled, ncomp = 31)
+```
+
+This PCR model reduced dimensionality from 73 variables down to 31 components and outperformed Ridge, Lasso, and Elastic Net regularization methods making it our model of choice. 
+
 
 # Sources
 
