@@ -238,7 +238,13 @@ pcr.fit <- pcr(SalePrice ~ .,data = train_scaled,validation = "CV")
 # plot RMSE vs number of components
 validationplot(pcr.fit, val.type = "RMSEP",
                legendpos='topright',
-               main = 'Number of Principal Components needed to
+               main = 'Number of Principal Components needed to minimise RMSE to
+Predict Sale Price')
+
+# plot of Rsquared vs number of components
+validationplot(pcr.fit, val.type = "R2",
+               legendpos='topright',
+               main = 'Principal Components needed to maximise R-squared to
 Predict Sale Price')
 ```
 
@@ -325,7 +331,7 @@ ridge_preds = predict(ridge_model, newdata = X_test_scaled)
 postResample(pred = ridge_preds, obs = y_test)
 ```
 
-This shows us that our ridge model's best cross-validated performance is $29,408.71$, which is only slightly worse than our PCR model (worse by roughly $1,000$).
+This shows us that our ridge model's best cross-validated performance is $33,211.91$, which is worse than our PCR model (by roughly $4,000$). The Rsquared is $0.8071006$.
 
 
 ## LASSO
@@ -377,7 +383,9 @@ train_control <- trainControl(method = "repeatedcv",
 lasso_model 	<- train(SalePrice ~ .,
                        data = train_scaled_reg,
                        metrics = 'RMSE',
-                       method = "lasso",
+                       method = "glmnet",
+                       tuneGrid = expand.grid(alpha = 1, 
+                                              lambda = 1),
                        tuneLength = 25,
                        trControl = train_control)
 
@@ -387,7 +395,7 @@ lasso_preds = predict(lasso_model, newdata = X_test_scaled)
 # Evaluate performance
 postResample(pred = lasso_preds, obs = y_test)
 ```
-
+This shows us that our LASSO model's best cross-validated performance is $33,128.05$, which is worse than our PCR model (by roughly $4,000$). The Rsquared is $0.806975$.
 
 ## Elastic Net
 
@@ -447,17 +455,16 @@ This shows us that our Elastic Net Model's best cross-validated performance is $
 ## Model Comparison
 
 RMSE Comparison: 
-Ridge: $29,408.71$
-Lasso:
+Ridge: $33,211.91$
+Lasso: $33,128.05$
 E-Net: $33,115.49$
 PCA: $28,141.38$
 
 R-Squared Comparison:
-Ridge: 
-Lasso:
+Ridge: $0.8071006$
+Lasso: $0.806975$
 E-Net: $0.807007$
-PCA:
-
+PCA: 
 
 # Sources
 
