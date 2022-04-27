@@ -1,6 +1,6 @@
 ---
 title: "ECON 187: Project 1"
-author: "Austin Pham (905318112), Shannan Liu (305172952)"
+author: "Austin Pham (905318112), Shannan Liu (305172952), Christina Zhang(605325840)"
 output: pdf_document
 
 ---
@@ -27,6 +27,7 @@ body <- body %>% mutate(gender = factor(ifelse(gender == "M", 1, 0)))
 sum(is.na(body))
 head(body)
 ```
+Below are the graphs that shows the possible correlation between all the predictors with Class A,B,C,and D. From the grpahs, we can see that all the correlations are significant, so we will be using all the predictors for classification analysis.
 
 ```{r eval=FALSE, message=FALSE, warning=FALSE}
 plot1 <- body %>% ggpairs(columns = c(1:4,12), ggplot2::aes(col = class, fill = class))
@@ -38,8 +39,6 @@ plot2
 ```
 
 ## Logistic Regression
-
-**QUESTION** Do I train control over the entire dataset and then predict the entire datset using that as my MSE ??
 
 ```{r}
 set.seed(42)
@@ -61,6 +60,7 @@ confusionMatrix(mn.fit.boot)
 mn.fit.cv$results
 mn.fit.boot$results
 ```
+The logistic regression method shows an overall accuracy of 0.6177.
 
 ## LDA
 
@@ -81,6 +81,7 @@ confusionMatrix(lda.fit.boot)
 lda.fit.cv$results
 lda.fit.boot$results
 ```
+LDA shows an overall accuracy of 0.6126.
 
 ## QDA
 
@@ -102,6 +103,9 @@ qda.fit.cv$results
 qda.fit.boot$results
 ```
 
+
+QDA shows an overall accuracy of 0.6549.
+
 ## kNN
 
 ```{r}
@@ -119,6 +123,7 @@ confusionMatrix(knn.fit.boot)
 knn.fit.cv$results
 knn.fit.boot$results
 ```
+KNN yields an accuracy of 0.5849.
 
 ## k-Means
 
@@ -130,19 +135,61 @@ bp_ <- body[,c(-2,-12)]
 bp_ <- na.omit(bp_)
 bp_ <-scale(bp_)
 
-set.seed(240) # Setting seed
-kmeans.re <- kmeans(bp_, centers=3, nstart = 20)
-kmeans.re
+```
 
-kmeans.re$cluster
+
+```{r}
+
+#create the function that runs the k-mean algorithm and get the clusters sum of squares
+
+kmean_withinss <- function(k) {
+    cluster <- kmeans(bp_, k)
+    return (cluster$tot.withinss)
+}
+
+maxk <-10
+re <- sapply(2:maxk, kmean_withinss)
+
+re. <-data.frame(2:maxk, re) #create a data frame to store all values
+
+ggplot(re., aes(x = X2.maxk, y = re)) +
+    geom_point() +
+    geom_line() +
+    scale_x_continuous(breaks = seq(1, 10, by = 1))
+```
+From the graph, we can see the optimal k is 6, where the curve starts to diminish the return.
+
+```{r}
+set.seed(240) # Setting seed
+kmeans.re <- kmeans(bp_, centers=6, nstart = 20)
 
 # Confusion Matrix
 table(body$class, kmeans.re$cluster)
 
+body_kmeans <- cbind(body, cluster = kmeans.re$cluster)
+head(body_kmeans)
+
+kmeans.re$centers #matrix of cluster centers
+kmeans.re$size #number of points in each clusters
 
 ```
+The cluster centers shows that cluster 5 have the highest body fat % and age average among all clusters, and cluster 3 has the highest average weight among all.
 
-Based on your fits, identify whether a linear or non-linear model is more appropriate. Make sure to discuss your results (including plots and tables), and to use CV and/or bootstrap to evaluate your models’ performance.
+```{r}
+
+fviz_cluster(kmeans.re, data = bp_)
+
+```
+The plot displays that each group have similar dimensions but there are still some overlaps.
+
+```{r}
+fviz_cluster(kmeans(bp_, centers=4, nstart = 20), data = bp_)
+
+```
+Clusters of 4 might work better in this case. Now we can see that all the clusters are more separated form each other.
+
+Based on my fits, a non-linear is more appropriate since the accuracy generated from QDA has the highest accuracy, though the accuracy are pretty close to each other in all classification methods. 
+
 
 # Regularization
 For this portion of the project, we're going to use a data set containing information on the Australian housing market and apply regularization techniques to make predictions on house prices. The data set will have 81 columns of data. 
