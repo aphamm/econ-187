@@ -1,0 +1,128 @@
+---
+title: "Project 1"
+author: "Yiting Zhang"
+date: '2022-04-19'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+
+library(stats)
+library(ISLR)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(GGally)
+library(boot)
+library(e1071)
+
+```
+
+```{r}
+
+bp <- read_csv("bodyPerformance.csv")
+
+as.data.frame(bp)
+
+na.omit(bp)
+
+```
+
+Classification: Fit the following models to your data:
+Logistic Regression
+LDA
+QDA
+kNN
+k-Means
+Based on your fits, identify whether a linear or non-linear model is more appropriate. Make
+sure to discuss your results (including plots and tables), and to use CV and/or bootstrap to
+evaluate your models’ performance.
+
+```{r}
+bp <- bp %>%  mutate(gender = factor(ifelse( gender == "M", 1, 0)))
+
+```
+
+```{r}
+
+ggpairs(bp,  columns = c(1:6,12), upper = list(continuous = wrap("cor", size = 2.5)))
+
+ggpairs(bp,  columns = 7:12, upper = list(continuous = wrap("cor", size = 2.5)))
+
+
+```
+
+```{r}
+
+set.seed(12345678)
+train <- sample(1:dim(bp)[1], dim(bp)[1]*.75, rep=FALSE)
+test <- -train
+training<- bp[train, ]
+testing <- bp[test, ]
+class.test <- bp$class[test]
+
+```
+
+```{r}
+#lda
+
+library(MASS)
+lda.fit=lda(class~.,data=training)
+lda.fit
+plot(lda.fit)
+lda.class=predict(lda.fit,testing)$class
+table(lda.class,class.test)
+mean(lda.class!= class.test)
+# error= 0.383
+
+```
+
+
+```{r}
+#qda
+qda.fit=qda(class~.,data=training)
+qda.fit
+qda.class=predict(qda.fit,testing)$class
+table(qda.class,class.test)
+mean(qda.class!=class.test)
+#error= 0.3514482
+```
+```{r}
+
+#knn
+
+library(class)
+training_ = bp[train,c("age", "gender","height_cm","weight_kg","body fat_%", "diastolic","systolic","gripForce","sit and bend forward_cm","sit-ups counts","broad jump_cm")]
+testing_ = bp[test, c("age", "gender","height_cm","weight_kg","body fat_%", "diastolic","systolic","gripForce","sit and bend forward_cm","sit-ups counts","broad jump_cm")]
+class.train <- bp$class[train]
+class.test <- bp$class[test]
+
+set.seed(1)
+knn.pred1=knn(training_,testing_,class.train,k=1)
+table(knn.pred1,class.test)
+mean(knn.pred1!=class.test)
+
+knn.pred2=knn(training_,testing_,class.train,k=3)
+table(knn.pred2,class.test)
+mean(knn.pred2!=class.test)
+
+#error=0.4472977
+
+```
+
+
+```{r}
+#k means
+library(factoextra)
+library(ClusterR)
+library(cluster)
+
+set.seed(240) # Setting seed
+kmeans.re <- kmeans(bp$class, centers = 3, nstart = 20)
+kmeans.re
+
+```
+

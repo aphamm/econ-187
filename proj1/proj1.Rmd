@@ -12,6 +12,11 @@ library(tidyverse)
 library(GGally)
 library(nnet)
 library(caret)
+library(factoextra)
+library(ClusterR)
+library(cluster)
+library(ggplot2)
+
 ```
 
 # Classification
@@ -118,6 +123,22 @@ knn.fit.boot$results
 ## k-Means
 
 ```{r}
+
+#k means
+
+bp_ <- body[,c(-2,-12)]
+bp_ <- na.omit(bp_)
+bp_ <-scale(bp_)
+
+set.seed(240) # Setting seed
+kmeans.re <- kmeans(bp_, centers=3, nstart = 20)
+kmeans.re
+
+kmeans.re$cluster
+
+# Confusion Matrix
+table(body$class, kmeans.re$cluster)
+
 
 ```
 
