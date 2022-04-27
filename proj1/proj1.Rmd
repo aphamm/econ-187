@@ -1,6 +1,6 @@
 ---
 title: "ECON 187: Project 1"
-author: "Austin Pham (905318112), Shannan Liu (305172952), Christina Zhang(605325840)"
+author: "Austin Pham (905318112), Shannan Liu (305172952), Christina Zhang(605325840), Zachary Wrubel (205102460)"
 output: pdf_document
 
 ---
