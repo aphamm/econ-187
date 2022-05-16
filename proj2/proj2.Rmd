@@ -1,7 +1,7 @@
 ---
-title: "Econ 187 Project 2"
-author: "Shannan Liu Christina Zhang"
-date: "5/15/2022"
+title: "ECON 187: Project 2"
+author: "Shannan Liu (305172952), Christina Zhang(605325840), Austin Pham (905318112), Zachary Wrubel (205102460)"
+date: "5/17/2022"
 fontfamily: mathpazo
 output:
   pdf_document:
@@ -17,6 +17,7 @@ chunk_output_type: console
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls(all=TRUE))
 library(tidyverse)
 library(GGally)
 library(caret)
@@ -31,13 +32,19 @@ library(gam)
 library(splines)
 library(MASS)
 library(boot)
+library(tree)
+library(rpart)
+library(rpart.plot)
+library(ISLR2)
+library(randomForest)
+library(gbm)
 ```
 
 \newpage
 
 ## Acquiring Data & Data Preprocessing
 ```{r}
-df = read_csv('https://raw.githubusercontent.com/onlypham/econ-187/main/Project%202/Awarded%20Grants.csv')
+df = read_csv('https://raw.githubusercontent.com/onlypham/econ-187/main/proj2/Awarded%20Grants.csv')
 
 # initially we have 46 variables
 print(length(names(df)))
@@ -111,8 +118,7 @@ test <- test[ , !(names(test) %in% drops)]
 # give any information i.e. 0 variance
 # this would be the case if a column only 
 # has 1 unique value
-cat("In the training set these variables have 0 variance:",names(sapply(lapply(train, unique), 
-length)[sapply(lapply(train, unique), length) == 1]),"\n")
+cat("In the training set these variables have 0 variance:",names(sapply(lapply(train, unique), length)[sapply(lapply(train, unique), length) == 1]),"\n")
 ```
 
 None of our variables have 0 variance, so we can move on to processing our data. In other words, scaling our numeric data and encoding the categorical data.
@@ -330,22 +336,7 @@ cat("MAE for GAM2:",mean(
 
 We can see that our second GAM model that includes all the categorical variables performs the best on our dataset. Thus, this is the best model, and the one we will be comparing with all of our other models.
 
-
 # Decision Tree
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-rm(list=ls(all=TRUE))
-
-library(tree)
-library(rpart)
-library(rpart.plot)
-library(ISLR2)
-library(randomForest)
-library(gbm)
-
-```
-
 
 ```{r}
 
