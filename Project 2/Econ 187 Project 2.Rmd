@@ -1,6 +1,6 @@
 ---
 title: "Econ 187 Project 2"
-author: "Shannan Liu"
+author: "Shannan Liu Christina Zhang"
 date: "5/15/2022"
 fontfamily: mathpazo
 output:
@@ -329,6 +329,155 @@ cat("MAE for GAM2:",mean(
 ```
 
 We can see that our second GAM model that includes all the categorical variables performs the best on our dataset. Thus, this is the best model, and the one we will be comparing with all of our other models.
+
+
+# Decision Tree
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls(all=TRUE))
+
+library(tree)
+library(rpart)
+library(rpart.plot)
+library(ISLR2)
+library(randomForest)
+library(gbm)
+
+```
+
+
+```{r}
+
+wine<-read.csv("winequality-red.csv")
+
+summary(wine)
+```
+
+## Regression Tree
+
+
+
+## Classification Tree
+
+
+
+## Random Forest 
+
+```{r}
+set.seed(123)
+
+train <- sample(1:nrow(wine), nrow(wine) / 2)
+wine.test <- wine[-train, "quality"]
+
+bag.wine <- randomForest(quality ~ ., data =wine,
+    subset = train, mtry = 11, importance = TRUE)
+# mytry=16 indicates all 11 predictors should be considered for each split of the tree
+bag.wine
+
+
+```
+
+```{r}
+
+yhat.bag <- predict(bag.wine, newdata = wine[-train, ])
+plot(yhat.bag, wine.test)
+abline(0, 1)
+
+```
+
+```{r}
+
+mean((yhat.bag - wine.test)^2)
+#The test set MSE associated with the bagged regression tree is 0.363
+
+```
+
+```{r}
+
+#change the number of trees
+
+rf.wine <- randomForest(quality ~ ., data =wine,
+    subset = train, mtry = 11, ntree=25)
+yhat.rf <- predict(rf.wine, newdata = wine[-train, ])
+mean((yhat.rf - wine.test)^2)
+#The test set MSE associated with the random forest is 0.378
+
+```
+
+```{r}
+#try a smaller value of mtry
+
+rf.wine <- randomForest(quality ~ ., data =wine,
+    subset = train, mtry = 5)
+yhat.rf <- predict(rf.wine, newdata = wine[-train, ])
+mean((yhat.rf - wine.test)^2)
+#The test set MSE associated with random forest is 0.347
+```
+The MSE improved. Random forest yields a better MSE than bagging in this case.
+
+```{r}
+#check the importance of the variables
+importance(rf.wine)
+
+#plot the importance
+varImpPlot(rf.wine)
+
+
+```
+The plot indicates that across all tress considered in random forest, the percent alcohol content of the wine (alcohol) and wine additive that contribute to SO2 levels (sulfates) are the two most important variables.
+
+## Boosting
+
+```{r}
+
+
+set.seed(123)
+boost.wine <- gbm(quality ~ ., data = wine[train, ],
+    distribution = "gaussian", n.trees = 5000,
+    interaction.depth = 4)
+#use 5000 trees
+#interaction.depth = 4 limits the depth of each tree
+
+```
+
+```{r}
+summary(boost.wine)
+```
+
+alcohol and volatile.acidity are by far the most importan variables.
+
+```{r}
+#partial dependence plot
+
+par(mfrow=c(1,2)) 
+plot(boost.wine, i = "alcohol")
+plot(boost.wine, i = "volatile.acidity")
+```
+
+```{r}
+#predict
+
+yhat.boost <- predict(boost.wine,
+    newdata = wine[-train, ], n.trees = 5000)
+mean((yhat.boost - wine.test)^2)
+#The test set MSE associated with boosting is 0.465
+```
+
+```{r}
+#Try a different shrinking parameter lambda 
+boost.wine <- gbm(quality ~ ., data = wine[train, ],
+    distribution = "gaussian", n.trees = 5000,
+    interaction.depth = 4, shrinkage = 0.03, verbose = F)
+yhat.boost <- predict(boost.wine,
+    newdata = wine[-train, ], n.trees = 5000)
+mean((yhat.boost - wine.test)^2)
+
+```
+
+In this case, $\lambda=0.2$ lead to a better MSE than when $\lambda=0.01$ .
+
+
 
 
 
