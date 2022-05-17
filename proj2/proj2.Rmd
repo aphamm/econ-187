@@ -338,136 +338,314 @@ We can see that our second GAM model that includes all the categorical variables
 
 # Decision Tree
 
+Based on your fits, identify the best model taking into consideration the bias-variance tradeoff. Make sure to discuss your results (including plots and tables), and to use CV and/or bootstrap to evaluate your models’ performance.
+
 ```{r}
 wine <- read_csv('https://raw.githubusercontent.com/onlypham/econ-187/main/proj2/wine.csv')
-summary(wine)
+colnames(wine) <- c("fixAcid", "volAcid", "citAcid", "resSugar", "chlorides", "freeSul", "totSul", "density", "pH", "sulphates", "alcohol", "quality")
 ```
 
 ## Regression Tree
 
+Let's first create a training set and fit a tree. Looking at the summary we notice that only three of the 3 out of the 11 variables are used in constructing the tree: alcohol, sulphates, and volAcid. This also seems to be the relative order of importance as we first split based on alcohol content and then sulphate content. 
 
+```{r}
+set.seed(1)
+train <- sample(1:nrow(wine), nrow(wine)*0.8)
+tree.wine <- tree(quality ~ ., wine, subset = train)
+summary(tree.wine)
+plot(tree.wine)
+text(tree.wine, pretty = 0)
+```
+
+Using cross validation we wish to see if pruning the tree can improve performance.
+
+```{r}
+cv.wine <- cv.tree(tree.wine)
+plot(cv.wine$size, cv.wine$dev, type = "b", main = "Tree Size Cross Validation", xlab = "Tree Size", ylab = "Error")
+```
+
+ We notice that we get really good performance with even just a tree size of just 5-6. Let's just keep a size of 6 and see what the best pruned tree looks like.
+
+```{r}
+prune.wine <- prune.tree(tree.wine, best = 6)
+plot(prune.wine)
+text(prune.wine, pretty = 0)
+```
+
+Using this unpruned tree, we get a MSE of $0.4801827$. The RMSE is $0.6929522$ which means that our model leads to test predictions that on average are within $0.6929522$ of the true wine quality score.
+
+```{r}
+yhat <- predict(tree.wine, newdata = wine[-train, ])
+wine.test <- wine[-train, ] %>% pull(quality)
+plot(yhat, wine.test, xlab = "Predicted", ylab = "Actual", main = "Test Prediction for Unpruned Tree")
+abline(0, 1)
+mean((yhat - wine.test)^2)
+```
+
+Now, let's use the rpart method! Let's first split up the data.
+
+```{r}
+set.seed(42)
+inTraining <- createDataPartition(wine$quality, p = 0.8, list = FALSE)
+training <- wine[inTraining,]
+testing  <- wine[-inTraining,]
+```
+Let's build a full tree and performa  k-fold cross-validation to select the optimal cost complexity (cp). The anova method creates a regression tree. Printing the results, we see that our training set has 1281 observations and at the root node we have an $SSE=834.47930$ and a predicted quality mean of $5.636222$ (this is just the sample mean of our training data).
+
+```{r}
+set.seed(42)
+regression.tree  <- rpart(formula = quality ~ ., data = training, method = "anova", xval = 10, model = TRUE)
+print(regression.tree)
+```
+Using rpart() we grew the full tree using cross-validation to test the perofmrance of the possible comlexity hyperparameters.
+
+```{r}
+rpart.plot(regression.tree, yesno = TRUE)
+```
+Let's use printcp to decide how to prune the tree. Looking at the ouptut we notice that an $nsplit=0$ corresponds to just the root node in which we get a relative error of 1. xerror is the cross-validated SSE and xstd is the standard error. 
+
+```{r}
+printcp(regression.tree)
+```
+
+If we want the lowest possible error, we'd prune to the tree with the smallest relative SSE. However, we wish to balance predictive power with simplicty so we will prune to a tree relative the smallest relative SSE. Unsurprisingly, we get the lowest xerror with 11 splits. Let's try to be within two standard deviation of 11 split's xerror. This gives us 4 splits, which is pretty consistent with our other cross validated pruned tree model.
+
+```{r}
+index <- which(regression.tree$cptable[,"xerror"] == min(regression.tree$cptable[,"xerror"]))
+(threshold <- regression.tree$cptable[index,"xerror"] + 2 * regression.tree$cptable[index,"xstd"])
+```
+Even the graph shows similiar results.
+
+```{r}
+plotcp(regression.tree, upper = "splits")
+```
+Let's prune the tree real quick.
+
+```{r}
+regression.prune <- prune(regression.tree, cp = regression.tree$cptable[regression.tree$cptable[, 2] == 4, "CP"])
+rpart.plot(regression.prune, yesno = TRUE)
+```
+
+Looking at the variable importance, we see Alcohol, Volatile Acid and Acid are most importance.
+
+```{r}
+barplot(regression.prune$variable.importance, main = "Variable Importance", horiz = TRUE, las = 2)
+```
+With this train test split we get a $RMSE=0.723623$. 
+
+```{r}
+preds <- predict(regression.prune, testing, type = "vector")
+RMSE(pred = preds, obs = testing$quality)
+```
+
+Now let's rebuild the model using caret(). We'll make a 10-fold cross validation split to optimize the hyperparameter CP. 
+
+```{r}
+set.seed(42)
+trControl <- trainControl(method = "cv", number = 10, savePredictions = "final")
+regression.cv1 <- train(quality ~ ., data = training, method = "rpart", tuneLength = 5,  metric = "RMSE", trControl = trControl)
+```
+
+We see we get the best RMSE when $cp=0.02393885$ We can then refine our search near this location.
+
+```{r}
+print(regression.cv1)
+```
+
+We see we get the best RMSE when $cp=0.005$. 
+
+```{r}
+searchGrid <- expand.grid(cp = seq(from = 0, to = 0.05, by = 0.005))
+regression.cv2 <- train(quality ~ ., data = training, method = "rpart", tuneGrid  = searchGrid,  metric = "RMSE", trControl = trControl)
+print(regression.cv2)
+```
+
+```{r}
+rpart.plot(regression.cv2$finalModel)
+```
+
+We get the same approximate variable importance plots.
+
+```{r}
+plot(varImp(regression.cv2), main="Variable Importance with Simple Regression")
+```
+
+We see using the cross-validated pruned tree, we get a  $RMSE=0.6736749$. 
+
+```{r}
+preds.cv <- predict(regression.cv2, testing, type = "raw")
+RMSE(pred = preds.cv, obs = testing$quality)
+```
 
 ## Classification Tree
 
+Now, let's create a classification tree by turning our quality variable into a binary response variable corresponding to Good and Bad split when $quality = 6$. 
 
+```{r}
+response <- factor(ifelse(wine$quality <= 6, "Bad", "Good"))
+wine.class <- data.frame(wine, response)
+wine.class <- wine.class[, -12] # remove quality response
+```
+
+Here is our basic tree. We currently have a training error rate of $0.09944$. 
+
+```{r}
+tree.wine <- tree(response ~ ., wine.class)
+summary(tree.wine)
+```
+
+```{r}
+plot(tree.wine)
+text(tree.wine, pretty = 0)
+```
+
+Let's use a basic split. We get correction test predictions around $0.884375$ of the time.
+
+```{r}
+set.seed(42)
+train <- sample(1:nrow(wine.class), nrow(wine.class)*0.8)
+wine.class.test <- wine.class[-train, ]
+response.test <- response[-train]
+tree.wine <- tree(response ~ ., wine.class, subset = train)
+tree.pred <- predict(tree.wine, wine.class.test, type = "class")
+table(tree.pred, response.test)
+(267 + 16) / 320
+```
+
+Now, lets perform cross-validation in order to see the best level of tree complexity. 
+
+```{r}
+set.seed(42)
+cv.wine.class <- cv.tree(tree.wine, FUN = prune.misclass)
+plot(cv.wine.class$size, cv.wine.class$dev, type = "b", main = "MSE")
+```
+
+Lets apply the prune function to obtain a seven-node tree.
+
+```{r}
+prune.wine.class <- prune.misclass(tree.wine, best = 9)
+plot(prune.wine.class)
+text(prune.wine.class, pretty = 0)
+```
+
+This time we get a $0.85625$ of the test observations correctly classified.
+
+```{r}
+tree.pred <- predict(prune.wine.class, wine.class.test, type = "class")
+table(tree.pred, response.test)
+(258 + 16) / 320
+```
+
+With our cross-validated classification tree, we get an optimal $cp=0.02150538$
+
+```{r}
+set.seed(42)
+trControl <- trainControl(method = "cv", number = 10, savePredictions = "final")
+classification.cv1 <- train(response ~ ., data = wine.class, method = "rpart", tuneLength = 5, trControl = trControl)
+print(classification.cv1)
+```
+
+With this cross validated classification tree, we get an accuracy of $0.9$.
+
+```{r}
+preds.cv <- predict(classification.cv1, wine.class.test, type = "raw")
+table(preds.cv, response.test)
+(265+23)/320
+```
 
 ## Random Forest 
 
+Now let's create a randomForest. The argument mytry=11 indicates all 11 predictors should be considered for each split of the tree
+
 ```{r}
 set.seed(123)
-
 train <- sample(1:nrow(wine), nrow(wine) / 2)
 wine.test <- wine[-train, "quality"]
-
 bag.wine <- randomForest(quality ~ ., data = wine,
     subset = train, mtry = 11, importance = TRUE)
-# mytry=16 indicates all 11 predictors should be considered for each split of the tree
 bag.wine
-
-
 ```
 
 ```{r}
 yhat.bag <- predict(bag.wine, newdata = wine[-train, ])
-plot(yhat.bag, wine.test)
+plot(yhat.bag, wine.test$quality, xlab = "Predicted", ylab = "Actual", main = "Test Prediction for Unpruned Random Forest")
 abline(0, 1)
-
 ```
+The test set MSE associated with the bagged regression tree is $MSE=0.3548118$
 
 ```{r}
-
-mean((yhat.bag - wine.test)^2)
-#The test set MSE associated with the bagged regression tree is 0.363
-
+mean((yhat.bag - wine.test$quality)^2)
 ```
 
+Let's change up the number of trees.
+
 ```{r}
-
-#change the number of trees
-
 rf.wine <- randomForest(quality ~ ., data =wine,
     subset = train, mtry = 11, ntree=25)
 yhat.rf <- predict(rf.wine, newdata = wine[-train, ])
-mean((yhat.rf - wine.test)^2)
-#The test set MSE associated with the random forest is 0.378
-
 ```
+The test set MSE associated with the random forest is $MSE=0.3781385$.
 
 ```{r}
-#try a smaller value of mtry
+mean((yhat.rf - wine.test$quality)^2)
+```
+Now let's try a smaller value of mtry.
 
-rf.wine <- randomForest(quality ~ ., data =wine,
-    subset = train, mtry = 5)
+```{r}
+rf.wine <- randomForest(quality ~ ., data =wine, subset = train, mtry = 5)
 yhat.rf <- predict(rf.wine, newdata = wine[-train, ])
-mean((yhat.rf - wine.test)^2)
-#The test set MSE associated with random forest is 0.347
 ```
-The MSE improved. Random forest yields a better MSE than bagging in this case.
+
+The test set MSE associated with random forest is $MSE=0.347583$. The MSE improved. Random forest yields a better MSE than bagging in this case.
 
 ```{r}
-#check the importance of the variables
-importance(rf.wine)
-
-#plot the importance
-varImpPlot(rf.wine)
-
-
+mean((yhat.rf - wine.test$quality)^2)
 ```
-The plot indicates that across all tress considered in random forest, the percent alcohol content of the wine (alcohol) and wine additive that contribute to SO2 levels (sulfates) are the two most important variables.
+As we check the importance of the variables and plot the importance, we can see similiar results as before. The plot indicates that across all tress considered in random forest, the percent alcohol content of the wine (alcohol) and wine additive that contribute to SO2 levels (sulfates) are the two most important variables.
+
+```{r}
+importance(rf.wine)
+varImpPlot(rf.wine)
+```
 
 ## Boosting
 
+Now let's perform boosting. We will use 5000 trees. Setting the interaction.depth to 4 will limit the depth of each tree.
+
 ```{r}
-
-
 set.seed(123)
 boost.wine <- gbm(quality ~ ., data = wine[train, ],
-    distribution = "gaussian", n.trees = 5000,
-    interaction.depth = 4)
-#use 5000 trees
-#interaction.depth = 4 limits the depth of each tree
-
+    distribution = "gaussian", n.trees = 5000, interaction.depth = 4)
 ```
+As we can from the variable importance, alcohol and volatile acidity are by far the most important variables.
 
 ```{r}
-summary(boost.wine)
+summary(boost.wine, las = 2, main = "Variable Importance")
 ```
-
-alcohol and volatile.acidity are by far the most importan variables.
+Now, let's look at the partial dependence plot.
 
 ```{r}
-#partial dependence plot
-
 par(mfrow=c(1,2)) 
 plot(boost.wine, i = "alcohol")
-plot(boost.wine, i = "volatile.acidity")
+plot(boost.wine, i = "volAcid")
 ```
 
-```{r}
-#predict
+Using prediction, we get a $MSE=0.4732347$
 
-yhat.boost <- predict(boost.wine,
-    newdata = wine[-train, ], n.trees = 5000)
-mean((yhat.boost - wine.test)^2)
-#The test set MSE associated with boosting is 0.465
+```{r}
+yhat.boost <- predict(boost.wine, newdata = wine[-train, ], n.trees = 5000)
+mean((yhat.boost - wine.test$quality)^2)
 ```
 
+Now let's try a different shrinking parameter lambda. With this, we get a $MSE=0.426222$. Our shrinkage parameter become $0.03$.
+
 ```{r}
-#Try a different shrinking parameter lambda 
 boost.wine <- gbm(quality ~ ., data = wine[train, ],
     distribution = "gaussian", n.trees = 5000,
     interaction.depth = 4, shrinkage = 0.03, verbose = F)
-yhat.boost <- predict(boost.wine,
-    newdata = wine[-train, ], n.trees = 5000)
-mean((yhat.boost - wine.test)^2)
-
+yhat.boost <- predict(boost.wine, newdata = wine[-train, ], n.trees = 5000)
+mean((yhat.boost - wine.test$quality)^2)
+boost.wine$shrinkage
 ```
-
-In this case, $\lambda=0.2$ lead to a better MSE than when $\lambda=0.01$ .
-
-
-
-
-
-
-
+In summation, we get an classification accuracy of $0.9$ with our cross-validated classification tree. For our regression analysis, we get the best results for the following models: $RMSE=0.6736749$ for regression tree, $RMSE=0.5895617$ for random forest and $RMSE=0.6528568$ for boosting.
