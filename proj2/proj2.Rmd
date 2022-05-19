@@ -1,6 +1,6 @@
 ---
 title: "ECON 187: Project 2"
-author: "Shannan Liu (305172952), Christina Zhang(605325840), Austin Pham (905318112), Zachary Wrubel (205102460)"
+author: "Shannan Liu (305172952), Christina Zhang (605325840), Austin Pham (905318112), Zachary Wrubel (205102460)"
 date: "5/17/2022"
 fontfamily: mathpazo
 output:
@@ -168,7 +168,7 @@ X_train_scaled <- data.frame(predict(dummy,
 X_test_scaled <- data.frame(predict(dummy, 
                                     newdata = X_test_scaled))
 
-# putting all the data back together for easier modelling 
+# putting all the data back together for easier modeling 
 train_scaled <- X_train_scaled
 train_scaled['Financial Assistance'] <- y_train
 
@@ -204,7 +204,243 @@ Now that our data is ready, we can begin fitting our models to predict the amoun
 
 \newpage
 
+## Peicewise Polynomial Regression
+
+As polynomial regressions perform poorly at the tails since they do not extrapolate well, we will first build a piecewise polynomial model. We will start by using our non-categorical variables and creating a polynomial using one predictor at a time.
+
+```{r}
+#Cross validate to choose degree of each spline that minimizes RMSE
+set.seed(1)
+train.control <- trainControl(method = "cv", number = 10)
+rmse <- rep(NA, 15)
+for (i in seq_along(rmse)) {
+  model <- train(`Financial Assistance` ~ bs(X.Award.Year., 4), 
+    data = train_scaled,
+    method = "lm", trControl = train.control)
+  rmse[i] <- model$results[[2]]
+}
+rmse
+which(rmse == min(rmse))
+plot(rmse)
+```
+
+From cross-validation we find that df=14 minimizes RMSE. We will now build our model using df=14:
+
+```{r}
+library(splines)
+pp1 <- lm(`Financial Assistance` ~ bs(X.Award.Year., 14), data=train_scaled)
+summary(pp1)
+```
+
+We will now repeat for the other two non-categorical variables and compare their performance using ANOVA:
+
+```{r}
+set.seed(1)
+train.control <- trainControl(method = "cv", number = 10)
+rmse <- rep(NA, 15)
+for (i in seq_along(rmse)) {
+  model <- train(`Financial Assistance` ~ bs(X.Geocoding.Artifact.Address.Primary.X.Coordinate., 4), 
+    data = train_scaled,
+    method = "lm", trControl = train.control)
+  rmse[i] <- model$results[[2]]
+}
+rmse
+which(rmse == min(rmse))
+plot(rmse)
+```
+
+Cross validation reveals df=7 minimizes RMSE. Hence, we will build our second model with df=7:
+
+```{r}
+pp2 <- lm(`Financial Assistance` ~ bs(X.Geocoding.Artifact.Address.Primary.X.Coordinate., 14), data=train_scaled)
+summary(pp2)
+```
+
+And finally our last non-categorical variable:
+
+```{r}
+set.seed(1)
+train.control <- trainControl(method = "cv", number = 10)
+rmse <- rep(NA, 15)
+for (i in seq_along(rmse)) {
+  model <- train(`Financial Assistance` ~ bs(X.Geocoding.Artifact.Address.Primary.Y.Coordinate., 4), 
+    data = train_scaled,
+    method = "lm", trControl = train.control)
+  rmse[i] <- model$results[[2]]
+}
+rmse
+which(rmse == min(rmse))
+plot(rmse)
+```
+
+We will now build our final model with df=7:
+
+```{r}
+pp3 <- lm(`Financial Assistance` ~ bs(X.Geocoding.Artifact.Address.Primary.Y.Coordinate., 7), data=train_scaled)
+summary(pp3)
+```
+
+We will now use an ANOVA test to compare our three spline models:
+
+```{r}
+anova(pp1,pp2,pp3,test="F")
+```
+
+None of them seem to be significant, so we will now construct a piecewise polynomial using all three non-categorical variables:
+
+```{r}
+set.seed(1)
+train.control <- trainControl(method = "cv", number = 10)
+rmse <- rep(NA, 15)
+for (i in seq_along(rmse)) {
+  model <- train(`Financial Assistance` ~ bs(X.Award.Year.,4) + bs(X.Geocoding.Artifact.Address.Primary.X.Coordinate., 4) + bs(X.Geocoding.Artifact.Address.Primary.Y.Coordinate., 4), 
+    data = train_scaled,
+    method = "lm", trControl = train.control)
+  rmse[i] <- model$results[[2]]
+}
+rmse
+which(rmse == min(rmse))
+plot(rmse)
+```
+
+Cross validation chooses df=7 for this model as well. 
+
+```{r}
+#Construct Model
+pp4 <- lm(`Financial Assistance` ~ bs(X.Award.Year., df=7) + bs(X.Geocoding.Artifact.Address.Primary.X.Coordinate., 
+    df=7) + bs(X.Geocoding.Artifact.Address.Primary.Y.Coordinate., 
+    df=7), data = train_scaled)
+summary(pp4)
+```
+
+We will now compare this spline combining all three non-categorical variables with the models consisting of univariate splines. 
+
+```{r}
+anova(pp1,pp2,pp3,pp4,test="F")
+```
+ 
+The model uisng polynomials of all three non-categorical variables performs the best, so we will measure its performance on our testing data now. 
+
+```{r}
+#Evaluate Model
+pred.pp <- predict(pp4, newdata=test_scaled)
+
+# RMSE
+cat("RMSE for Piecewise Polynomial:",sqrt(
+  mean((pred.pp - y_test)^2)),
+  "\n")
+
+# MAE
+cat("MAE for Piecewise Polynomial:",mean(
+  abs(pred.pp - y_test)),
+  "\n")
+```
+
+Our piecewise polynomial of choice has an RMSE of $4480281$ and MAE of $1743207$, so this will be our model we compare our next models to. 
+ 
+\newpage
+
+##Smoothing Splines 
+
+To try to improve on the performance of the piecewise polynomial model, we will now try fitting smoothing splines to our non-categorical variables. We will try models with a smoothing spline on each individual variable, as well as all the variables in one model. We will chose the lamda through cross validation.
+
+```{r}
+#Smoothing spline using X.Award.Year
+smooth.spline1 <- smooth.spline(train_scaled$X.Award.Year., train_scaled$`Financial Assistance`, cv=TRUE)
+smooth.spline1$df
+```
+
+Cross validation chooses a lamda that leads to df=2. We will now plot this model to asses the fit:
+
+```{r}
+#plot
+plot(train_scaled$X.Award.Year., train_scaled$`Financial Assistance`, cex = .5, ylim=c(0,40000000), col = "darkgrey")
+title("Smoothing Spline")
+lines(smooth.spline1, col = "blue", lwd = 2)
+legend("topright", legend = c("2 DF"),
+    col = c("blue"), lty = 1, lwd = 2, cex = .8)
+```
+
+We will now try a smoothing spline using X.Geocoding.Artifact.Address.Primary.X.Coordinate.
+
+```{r}
+smooth.spline2 <- smooth.spline(train_scaled$X.Geocoding.Artifact.Address.Primary.X.Coordinate., 
+                                train_scaled$`Financial Assistance`, cv=TRUE)
+smooth.spline2$df
+```
+
+Cross validation chooses a lambda that leads to df=199.5382. We will now plot this model to asses the fit:
+
+```{r}
+#plot
+plot(train_scaled$X.Geocoding.Artifact.Address.Primary.X.Coordinate., train_scaled$`Financial Assistance`, ylim=c(0,10000000), cex = .5, col = "darkgrey")
+title("Smoothing Spline")
+lines(smooth.spline2, col = "blue", lwd = 2)
+legend("topright", legend = c("199 DF"),
+    col = c("blue"), lty = 1, lwd = 2, cex = .8)
+```
+
+We will now try a smoothing spline using X.Geocoding.Artifact.Address.Primary.Y.Coordinate.
+
+```{r}
+smooth.spline3 <- smooth.spline(train_scaled$X.Geocoding.Artifact.Address.Primary.Y.Coordinate., 
+                                train_scaled$`Financial Assistance`, cv=TRUE)
+smooth.spline3$df
+```
+
+Cross validation chooses a lamda that yeilds df=172.7218. We will now plot this model:
+
+```{r}
+#plot
+plot(train_scaled$X.Geocoding.Artifact.Address.Primary.Y.Coordinate., train_scaled$`Financial Assistance`, ylim=c(0,10000000), cex = .5, col = "darkgrey")
+title("Smoothing Spline")
+lines(smooth.spline3, col = "blue", lwd = 2)
+legend("topright", legend = c("172 DF"),
+    col = c("blue"), lty = 1, lwd = 2, cex = .8)
+```
+
+We will now predict our test set using each smoothing spline model and choose the one with the lowest RMSE and MAE:
+
+```{r}
+predspline1 <- predict(smooth.spline1, 
+                  newdata = test_scaled)
+predspline2 <- predict(smooth.spline2, 
+                  newdata = test_scaled)
+predspline3 <- predict(smooth.spline3, 
+                  newdata = test_scaled)
+
+
+# RMSE
+cat("RMSE for Smoothing Spline 1:",sqrt(
+  mean((predspline1$y - y_test)^2)),
+  "\n")
+cat("RMSE for Smoothing Spline 2:",sqrt(
+  mean((predspline2$y - y_test)^2)),
+  "\n")
+cat("RMSE for Smoothing Spline 3:",sqrt(
+  mean((predspline3$y - y_test)^2)),
+  "\n")
+
+# MAE
+cat("MAE for Smoothing Spline 1:",mean(
+  abs(predspline1$y - y_test)),
+  "\n")
+cat("MAE for Smoothing Spline 2:",mean(
+  abs(predspline2$y - y_test)),
+  "\n")
+cat("MAE for Smoothing Spline 3:",mean(
+  abs(predspline3$y - y_test)),
+  "\n")
+```
+
+Smoothing Spline 1 performs the best with an RMSE of $4495408$ and an MAE of $1758857$.
+ 
+\newpage
+
 ## GAMs
+
+We will now try to improve on the performance of our smoothing splines by predicting Financial Assistance using GAMS:
+
 ```{r}
 library(splines)
 library(gam)
@@ -238,7 +474,7 @@ form1 <- as.formula(
 form1
 ```
 
-From this, we can see that there are only 3 non-categorical variables in this dataset. We can use there 3 variables to create our first GAM model. Our second GAM model will then incorporate all the other categorical variables as well.
+From this, we can see that there are only 3 non-categorical variables in this dataset. We can use these 3 variables to create our first GAM model. Our second GAM model will then incorporate all the other categorical variables as well.
 
 ### GAM 1  
 ```{r}
@@ -259,7 +495,7 @@ summary(gam1)
 Now, let's build our second model
 
 ### GAM 2  
-In this model, we're also going to utilise all of our categorical variables.
+In this model, we're also going to utilize all of our categorical variables.
 
 ```{r}
 form2 <- as.formula(                     
@@ -336,7 +572,13 @@ cat("MAE for GAM2:",mean(
 
 We can see that our second GAM model that includes all the categorical variables performs the best on our dataset. Thus, this is the best model, and the one we will be comparing with all of our other models.
 
-# Decision Tree
+\newpage 
+### Choosing Optimal Model:
+
+In conclusion: our best performing piecewise polynomial had an RMSE of ____ and a MAE of ____. Our best performing smoothing spline had an RMSE of $4495408$ and an MAE of $1758857$. Our best performing GAM had an RMSE of $4364093$ and an MAE of $1644067$. Thus, our model of chouce is a GAM consisiting of natural splines of our three non-categorical variables X.Award.Year., X.Geocoding.Artifact.Address.Primary.X.Coordinate., X.Geocoding.Artifact.Address.Primary.Y.Coordinate., along with the other 179 categorical varibles included in the regression. 
+
+\newpage
+## Decision Tree
 
 Based on your fits, identify the best model taking into consideration the bias-variance tradeoff. Make sure to discuss your results (including plots and tables), and to use CV and/or bootstrap to evaluate your models’ performance.
 
