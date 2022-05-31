@@ -96,6 +96,8 @@ val  <- as.data.frame(tv_df[-train.index,])
 
 # EDA
 Now let's see if we can identify relationships between different variables and whether or not the closing price will go up or down.
+
+## Scatterplots  
 ```{r}
 ggplot(data = train, 
        aes(x = open, y = high,color = close),
@@ -119,6 +121,44 @@ ggplot(data = train,
 From these initial plots, we can see that there is no discernible pattern as to whether or not next week's closing price will go up or down based on only a couple of variables. This also demonstrates the difficulty of this classification task.
 
 Hence, we move onto more robust feature selection methods to identify the most important variables from our dataset.
+
+## Boxplots  
+```{r}
+ggplot(data = train, 
+       aes(x = close, y = VIX.close, fill = close),
+       ) + 
+  geom_boxplot() + 
+  ggtitle("Boxplot")
+ggplot(data = train, 
+       aes(x = close, y = GSPC.close, fill = close),
+       ) + 
+  geom_boxplot() + 
+  ggtitle("Boxplot")
+
+ggplot(data = train, 
+       aes(x = close, y = GCF.ma20, fill = close),
+       ) + 
+  geom_boxplot() + 
+  ggtitle("Boxplot")
+
+ggplot(data = train, 
+       aes(x = close, y = GCF.close, fill = close),
+       ) + 
+  geom_boxplot() + 
+  ggtitle("Boxplot")
+
+ggplot(data = train, 
+       aes(x = close, y = VIX.ma60, fill = close),
+       ) + 
+  geom_boxplot() + 
+  ggtitle("Boxplot")
+
+ggplot(data = train, 
+       aes(x = close, y = CLF.volume, fill = close),
+       ) + 
+  geom_boxplot() + 
+  ggtitle("Boxplot")
+```
 
 # Boruta Algorithm Feature Selection
 ```{r}
