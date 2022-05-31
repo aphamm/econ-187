@@ -135,10 +135,18 @@ boruta_signif_Reject <- names(Bor.res$finalDecision[Bor.res$finalDecision %in% c
 # Modelling
 
 ## Logistic Regression  
-
 ```{r}
 logit = glm(close ~ ., data = train, family = "binomial")
 preds <- ifelse(predict(logit,val,type = "response") > 0.5,1,0)
 confusionMatrix(as.factor(val$close), as.factor(preds))
 ```
 
+## Radial SVM 
+```{r}
+r_svm <- svm(close ~ ., data = train,
+             kernel = 'radial', 
+             cost = 1, gamma = 0.5,
+             scale = F)
+preds <- predict(r_svm,val,type = "response")
+confusionMatrix(as.factor(val$close), as.factor(preds))
+```
