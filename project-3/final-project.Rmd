@@ -72,6 +72,16 @@ names(df) <- gsub("-", ".", names(df), fixed = TRUE)
 # converting target variable to a factor
 df$close <- as.factor(df$close)
 
+# remove weeks indicator vars
+weeks <- c()
+for (n in names(df)){
+  if (grepl('week', n,fixed = T)){
+    weeks <- c(weeks,n)
+  }
+}
+
+df <- df[,!names(df) %in% weeks]
+
 # create training and validation set
 sample.index <- createDataPartition(df$close,p=0.8,list=FALSE)
 tv_df <- as.data.frame(df[sample.index,])
