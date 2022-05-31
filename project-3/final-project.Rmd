@@ -69,6 +69,9 @@ names(df) <- gsub("^", "", names(df), fixed = TRUE)
 names(df) <- gsub("=", "", names(df), fixed = TRUE)
 names(df) <- gsub("-", ".", names(df), fixed = TRUE)
 
+# baseline model acc
+mean(df$close) # our data set is balanced
+
 # converting target variable to a factor
 df$close <- as.factor(df$close)
 
@@ -91,6 +94,8 @@ test <- as.data.frame(df[-sample.index,])
 train.index <- createDataPartition(tv_df$close,p=0.7,list=FALSE)
 train <- as.data.frame(tv_df[train.index,])
 val  <- as.data.frame(tv_df[-train.index,])
+
+mean(as.numeric(val$close))
 ```
 
 
