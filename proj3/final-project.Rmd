@@ -42,11 +42,13 @@ library(Boruta)
 \newpage
 
 # Introduction
+
 In this project, we aim to build a generalized model for predicting whether the closing price of a stock from the S&P500 will go up or down the next week. Our dataset is composed of 5572 weekly observations, and it has 125 predictor variables. The feature-space includes indicator variables that store temporal information, and it contains financial data from various indices. The data also has momentum signals such as moving averages. Within our dataset, all the numeric predictor variables are normalized as returns. 
 
 We can reduce the dimensionality of our data with the Boruta Algorithm or Principal Component Analysis.
 
 Afterwards, we'll conduct our classification task with the following models and select the model that performs the best:
+
 1. Logistic regression
 2. KNN
 3. Bagging
@@ -58,6 +60,7 @@ Afterwards, we'll conduct our classification task with the following models and 
 Finally, we'll evaluate model performance on unseen data.
 
 # Loading in Data, Train-Test-Validation Split
+
 ```{r}
 set.seed(42)
 # read in data
@@ -105,22 +108,22 @@ Now let's see if we can identify relationships between different variables and w
 ## Scatterplots  
 ```{r}
 ggplot(data = train, 
-       aes(x = open, y = high,color = close),
+       aes(x = open, y = high, color = close),
        ) + 
   geom_point() + 
-  ggtitle("Open Price vs High Price")
+  ggtitle("High Price vs  Open Price")
 
 ggplot(data = train, 
-       aes(x = low, y = high,color = close),
+       aes(x = low, y = high, color = close),
        ) + 
   geom_point() + 
-  ggtitle("Low Price vs High Price")
+  ggtitle("High Price vs Low Price")
 
 ggplot(data = train, 
-       aes(x = low, y = open,color = close),
+       aes(x = low, y = open, color = close),
        ) + 
   geom_point() + 
-  ggtitle("Low Price vs Open Price")
+  ggtitle("Open Price vs Low Price")
 ```
 
 From these initial plots, we can see that there is no discernible pattern as to whether or not next week's closing price will go up or down based on only a couple of variables. This also demonstrates the difficulty of this classification task.
@@ -128,6 +131,7 @@ From these initial plots, we can see that there is no discernible pattern as to 
 Hence, we move onto more robust feature selection methods to identify the most important variables from our dataset.
 
 ## Boxplots  
+
 ```{r}
 ggplot(data = train, 
        aes(x = close, y = VIX.close, fill = close),
@@ -139,25 +143,21 @@ ggplot(data = train,
        ) + 
   geom_boxplot() + 
   ggtitle("Boxplot")
-
 ggplot(data = train, 
        aes(x = close, y = GCF.ma20, fill = close),
        ) + 
   geom_boxplot() + 
   ggtitle("Boxplot")
-
 ggplot(data = train, 
        aes(x = close, y = GCF.close, fill = close),
        ) + 
   geom_boxplot() + 
   ggtitle("Boxplot")
-
 ggplot(data = train, 
        aes(x = close, y = VIX.ma60, fill = close),
        ) + 
   geom_boxplot() + 
   ggtitle("Boxplot")
-
 ggplot(data = train, 
        aes(x = close, y = CLF.volume, fill = close),
        ) + 
