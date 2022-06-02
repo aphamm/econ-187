@@ -37,6 +37,8 @@ library(ISLR2)
 library(randomForest)
 library(e1071)
 library(Boruta)
+library(gbm)
+library(BART)
 ```
 
 \newpage
@@ -205,3 +207,40 @@ r_svm <- svm(close ~ ., data = train,
 preds <- predict(r_svm,val,type = "response")
 confusionMatrix(as.factor(val$close), as.factor(preds))
 ```
+
+
+## Random Forest 
+```{r}
+set.seed(1)
+rf.close <- randomForest(close ~., data=train, 
+                         importance = TRUE)
+yhat.rf <- predict(rf.close, newdata=val)
+confusionMatrix(as.factor(val$close), as.factor(yhat.rf))
+varImpPlot(rf.close, n.var=17, scale=TRUE, 
+           main= "Random Forest Variable Importance Plot")
+```
+
+## Boosting 
+```{r}
+# boosting
+boost <- gbm(close ~ ., data = train,
+  distribution = "multinomial", 
+  n.trees = 500,
+  interaction.depth = 4, 
+  shrinkage = 0.01, 
+  verbose = F)
+preds <- predict(boost, test, type = "response")
+labels <- colnames(preds)[apply(preds, 1, which.max)]
+boost_acc <- mean(as.integer(labels) == test$close)
+boost_acc
+summary(boost)
+boost
+
+#Partial Dependence Plots
+plot(boost.close, i = "GCF.ma5")
+plot(boost.close, i = "DJI.close")
+```
+
+
+
+
