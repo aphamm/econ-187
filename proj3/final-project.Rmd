@@ -124,6 +124,19 @@ ggplot(data = train,
        ) + 
   geom_point() + 
   ggtitle("Open Price vs Low Price")
+
+ggplot(data = train, 
+       aes(x = FTSE.close, y = DJI.close, color = close),
+       ) + 
+  geom_point() + 
+  ggtitle("DJIA Close Price vs FTSE Close Price")
+
+train$GCF.close
+ggplot(data = train, 
+       aes(x = FCHI.close, y = open, color = close),
+       ) + 
+  geom_point() + 
+  ggtitle("Open Price vs Oil Close Price")
 ```
 
 From these initial plots, we can see that there is no discernible pattern as to whether or not next week's closing price will go up or down based on only a couple of variables. This also demonstrates the difficulty of this classification task.
