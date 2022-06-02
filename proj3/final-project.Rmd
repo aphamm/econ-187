@@ -99,8 +99,6 @@ test <- as.data.frame(df[-sample.index,])
 train.index <- createDataPartition(tv_df$close,p=0.7,list=FALSE)
 train <- as.data.frame(tv_df[train.index,])
 val  <- as.data.frame(tv_df[-train.index,])
-
-mean(as.numeric(val$close))
 ```
 
 
@@ -198,6 +196,16 @@ preds <- ifelse(predict(logit,val,type = "response") > 0.5,1,0)
 confusionMatrix(as.factor(val$close), as.factor(preds))
 ```
 
+## SVC
+```{r}
+svc <- svm(close ~ ., data = train,
+             kernel = 'linear', 
+             cost = 1,
+             scale = F)
+preds <- predict(svc,val,type = "response")
+confusionMatrix(as.factor(val$close), as.factor(preds))
+```
+
 ## Radial SVM 
 ```{r}
 r_svm <- svm(close ~ ., data = train,
@@ -208,6 +216,16 @@ preds <- predict(r_svm,val,type = "response")
 confusionMatrix(as.factor(val$close), as.factor(preds))
 ```
 
+## Poly SVM 
+```{r}
+p_svm <- svm(close ~ ., data = train,
+             kernel = 'polynomial', 
+             cost = 1, degree = 3,
+             gamma = 0.5,
+             scale = F)
+preds <- predict(p_svm,val,type = "response")
+confusionMatrix(as.factor(val$close), as.factor(preds))
+```
 
 ## Random Forest 
 ```{r}
