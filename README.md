@@ -1,5 +1,5 @@
 ### ECON 187
 
-Applications for Machine Learning for Economists
+Upper Division Research Seminar: Applications of Machine Learning for Economists
 
 Spring 2022 - Randall Rojas
